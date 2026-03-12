@@ -1,0 +1,164 @@
+!     Energy tables for the TERSOFF potential.
+!     Parameters obtained from 
+!     "J. Tersoff, Modelling solid-state chemistry: Interatomic potentials 
+!     for multicomponent systems, Phys. Rev. B 39, 5566 (1989)".
+!     Avinash M. Dongare and Leonid V. Zhigilei [July 2003]
+!
+!     Copyright (c) 2000-2004 Computational Materials Group, UVa
+!     Leonid Zhigilei, http://www.faculty.virginia.edu/CompMat/
+!***************************************************************
+
+      SUBROUTINE EF1_TF(KTEF,KE1,KE2)
+        INCLUDE 'common.h'
+
+!       KTEF - type of the potential
+!       KE1, KE2 - elements from the list Element(N)
+!       Units: XT in Angs, UT in eV, FT in eV/Angs, mass in amu
+
+        INTEGER I
+        REAL *8 XT,A,B,TL1,TM1,RC,SC,DX,ANG
+        
+        CHARACTER*2, DIMENSION(2), PARAMETER:: Element = (/'Si','Ge'/)
+        
+        REAL*8, DIMENSION(2), PARAMETER:: mass=   &   ! M M M
+             (/ 28.0855D+00, 72.64D+00/)
+        REAL*8, DIMENSION(2), PARAMETER:: TSF_A=   &  ! A A A
+             (/1830.8D+00, 1769.0D+00/)
+        REAL*8, DIMENSION(2), PARAMETER:: TSF_B=   &  ! B B B 
+             (/471.18D+00, 419.23D+00 /)
+
+!       Constants in /A
+        REAL*8, DIMENSION(2), PARAMETER:: TSF_L1=   &  ! L1 L1 L1
+             (/2.4799D+00, 2.4451D+00/)  
+        REAL*8, DIMENSION(2), PARAMETER:: TSF_M1=   &  ! L2 L2 L2
+             (/1.7322D+00, 1.7047D+00/)
+        REAL*8, DIMENSION(3), PARAMETER:: TSF_KSI=   &  ! kappa link
+             (/1.000D+00, 1.000D+00, 1.00061D+00/)
+        
+!       Parameters: 
+        REAL*8, DIMENSION(2), PARAMETER:: TSF_WIJ=   &    
+             (/ 1.0D+00, 1.0D+00 /)
+        REAL*8, DIMENSION(2), PARAMETER:: TSF_Bet=   & ! beta beta beta   
+             (/ 1.1D-06, 9.0166D-07 /)
+        REAL*8, DIMENSION(2), PARAMETER:: TSF_C=   &  ! c c c  
+             (/ 1.0039D+05, 1.0643D+05 /)
+        REAL*8, DIMENSION(2), PARAMETER:: TSF_D=   &  ! d d d
+             (/ 16.217D+00, 15.652D+00 /)
+        REAL*8, DIMENSION(2), PARAMETER:: TSF_H=   &   ! h h h
+             (/ -0.59825D+00, -0.43884D+00/)
+        REAL*8, DIMENSION(2), PARAMETER:: TSF_N=   &   ! ETA ETA ETA
+             (/ 0.78734D+00, 0.75627D+00 /)
+
+!       Cutoff distance
+!       Req + one eighth the distance between second neighbor
+        REAL*8, DIMENSION(2), PARAMETER:: TSF_RC=   &   ! R1 R1 R1
+             (/ 2.7D+00, 2.8D+00 /) 
+!       Req + seven eighth the distance between second neighbor
+        REAL*8, DIMENSION(2), PARAMETER:: TSF_SC=   &   ! R2 R2 R2
+             (/ 3.0D+00, 3.1D+00 /)
+
+        real*8 :: rcc = 6.875d0   ! cutoff in angstroem if Si and H2O are in the couple
+
+!        IF(mypid.eq.0) Write (17,*) 'Creating tables for ', Element(KE1),'-', &
+!             Element(KE2),' Tersoff potential' 
+        
+        IF(KE1.EQ.KE2) Then 
+           XMass(KTEF) = MASS(KE1)
+           TF_C(KTEF) = TSF_C(KE1)
+           TF_D(KTEF) = TSF_D(KE1)
+           TF_H(KTEF) = TSF_H(KE1)
+           TF_N(KTEF) = TSF_N(KE1)
+           TF_Bet(KTEF) = TSF_Bet(KE1)
+           TL1 = TSF_L1(KE1)
+           TM1 = TSF_M1(KE1)
+           RC =TSF_RC(KE1) 
+           SC =TSF_SC(KE1)
+           A = TSF_A(KE1)
+           B = TSF_B(KE1) 
+           RM(KTEF) = TSF_SC(KE1)
+           TF_KSI(KTEF) = TSF_KSI(KE1)
+        ELSE
+           XMass(1) = MASS(KE1)
+           XMass(2) = MASS(KE2)
+           TL1 = (TSF_L1(KE1)+TSF_L1(KE2))/2.0d0
+           TM1 = (TSF_M1(KE1)+TSF_M1(KE2))/2.0d0
+           RC =SQRT(TSF_RC(KE1)*TSF_RC(KE2)) 
+           SC =SQRT(TSF_SC(KE1)*TSF_SC(KE2)) 
+           A = SQRT(TSF_A(KE1)*TSF_A(KE2))
+           B = SQRT(TSF_B(KE1)*TSF_B(KE2))
+           TF_KSI(KTEF) = TSF_KSI(3)
+           RM(KTEF) = SQRT(TSF_SC(KE1)*TSF_SC(KE2))
+        ENDIF
+
+!@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+        DX=RM(KTEF)/NT
+!        IF(KEYBS.EQ.7.AND.NTYPE.EQ.2) DX=rcc/NT ! In order to mix SW and EAM waterat the same range
+!@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+        UT(KTEF,1:NT) = 0.0d0
+        FT(KTEF,1:NT) = 0.0d0
+        FFR(KTEF,1:NT)= 0.0d0
+        DFR(KTEF,1:NT)= 0.0d0
+        FA(KTEF,1:NT) = 0.0d0
+        DFA(KTEF,1:NT)= 0.0d0
+        FC(KTEF,1:NT) = 0.0d0
+        DFC(KTEF,1:NT)= 0.0d0
+        DFCDFA(KTEF,1:NT) = 0.0d0
+        DFCDFR(KTEF,1:NT) = 0.0d0
+
+!        IF(mypid.eq.0) OPEN (UNIT = 444,FILE='TF-'//Element(KE1)//'-'//Element(KE2)//'.pot')
+
+        XT=0.0d+00  
+        
+        DO I=1,NT
+           XT=XT+DX
+           
+           IF(XT.LE.SC) Then 
+              
+              FFR(KTEF,I) = A * exp(-TL1*XT)
+              DFR(KTEF,I) = -TL1 * FFR(KTEF,I)
+              
+              FA(KTEF,I) = B * exp(-TM1*XT)
+              DFA(KTEF,I) = -TM1 * FA(KTEF,I)
+              
+              ANG = PI*(XT-RC)/(SC-RC)
+              
+              IF(XT.LE.RC) Then
+                 FC(KTEF,I)=1.0
+                 DFC(KTEF,I)=0.0
+              ENDIF
+              
+              IF(XT.GT.RC) Then
+                 FC(KTEF,I)=0.5+0.5*COS(PI*(XT-RC)/(SC-RC))   
+                 DFC(KTEF,I) =-(PI/(2.0*(SC-RC)))*SIN(PI*(XT-RC)/(SC-RC))
+              ENDIF
+              
+              DFCDFA(KTEF,I)=FC(KTEF,I)*DFA(KTEF,I)+FA(KTEF,I)*DFC(KTEF,I)
+              DFCDFR(KTEF,I)=FC(KTEF,I)*DFR(KTEF,I)+FFR(KTEF,I)*DFC(KTEF,I)
+              
+              UT(KTEF,I) =  FC(KTEF,I)*(FFR(KTEF,I)-FA(KTEF,I))
+              FT(KTEF,I) = DFCDFR(KTEF,I) - DFCDFA(KTEF,I)
+        
+!              Uncomment this line if want to plot the potential1
+!              IF(mypid.eq.0) WRITE (444,*) XT,UT(KTEF,I),FT(KTEF,I)
+
+!             Transfer to program units
+              UT(KTEF,I) = UT(KTEF,I)/ENUNIT
+              FT(KTEF,I) = FT(KTEF,I)/ENUNIT
+              
+           ENDIF
+           
+        END DO
+
+!        Uncomment this line if want to plot the potential
+!        IF(mypid.eq.0) CLOSE (UNIT = 444)
+
+        
+        RETURN
+      END SUBROUTINE EF1_TF
+
+
+
+
+
+

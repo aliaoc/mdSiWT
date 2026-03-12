@@ -1,0 +1,58 @@
+!     Performes initial setting for TTM model
+      SUBROUTINE SetTTM()
+        INCLUDE 'common.h'
+        INCLUDE 'commonTTM.h'
+        INCLUDE 'mpif.h'
+        CHARACTER*5 chpid
+
+        IF(mypid.eq.0) THEN
+           IF(TIME.EQ.0) THEN
+              E_pereG   = 0.0d0
+              F_totalG  = 0.0d0
+           ENDIF
+           OPEN (UNIT = 100,File='TTMenergy.out')  ! Energies/T vs time
+        ENDIF
+        
+        IF(TIME.EQ.0.0d0) RODENO = DBLE(NMETG)*xdiff*ydiff*zdiff/ &
+             (XLREAL*YLREAL*ZLREAL)/DBLE(nlcx*nlcy*nlcz)
+
+        IF(TIME.EQ.0.0d0.AND.NTYPE.GE.2) DENWAT = DBLE(NWATG)*xdiff*ydiff*zdiff/ &
+             (XLREALW*YLREALW*ZLREALW)/DBLE(nlcx*nlcy*nlcz)
+        
+        FLUID = .FALSE.
+
+        CALL TTMInit()
+
+        IF(TIME.EQ.0.0d0) THEN
+           T_e(0:nlc2-1) = 0.0d0
+           DO iz = 1,nlcz
+              DO iy = 1,nlcy
+                 DO ix = 1,nlcx
+                    ic = ix + nlcx2*(iy + nlcy2*iz)
+                    IF(NVK(ic).EQ.1) T_e(ic) = Teminit
+                    IF(IBULK(ic).AND.RON(ic).LT.RMINR*RODENO) T_l(ic)=Teminit
+                 ENDDO
+              ENDDO
+           ENDDO
+        ENDIF
+
+        CALL TTMTemper()
+        CALL Share_TTM()
+
+        CALL MPI_BARRIER(MPI_COMM_WORLD,ipass)
+
+        EGG(1) = 0.5d0*A_e*TeG(1)*TeG(1)
+        DO k = 2,NGT
+           EGG(k) = EGG(k-1) + 0.5d0*(CeN(k)+CeN(k-1))*(TeG(k)-TeG(k-1))
+        ENDDO
+
+        CALL Solid()
+
+        CALL Coeff()
+
+        CALL SwriteTTM()
+        CALL MPI_FINALIZE(info)
+        STOP
+        
+        RETURN  
+      END SUBROUTINE SetTTM

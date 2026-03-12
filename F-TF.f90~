@@ -1,0 +1,362 @@
+!     Evaluation of forces for the Tersoff  potential for Silicon
+!     Avinash M. Dongare and leonid V. Zhigilei [March 2003]
+!
+!     Copyright (c) 2000-2004 Computational Materials Group, UVa
+!     Leonid Zhigilei, http://www.faculty.virginia.edu/CompMat/
+!***************************************************************
+
+      SUBROUTINE F_TF()
+        INCLUDE 'common.h'
+
+!       Clear 3-body part of the forces
+        FDTF(1:3,1:NNF) = 0.0d0
+        STENTF(1:NNF,1:3,1:3) = 0.0d0
+        
+        outer_loop: DO I=1,NN1      !loop over ALL particles
+           IF (NNG(I).gt.MAXNNB) THEN
+              print *, ' TOO MANY NEIGHBOURS: ',NNG(I),' > ', maxnnb
+              STOP
+           ENDIF
+           ktypei=KTYPE(I)
+
+           IF(ktypei.EQ.KWT) CYCLE outer_loop
+           
+           inner_loop: DO KJ=1,NNG(I)      
+              J=NNNG(KJ,i)        !extract the atom number
+              KTYPEJ = KTYPE(J)
+
+              IF(ktypej.eq.KWT) CYCLE inner_loop
+              
+              DXIJ=XD(1,J)-XD(1,I)       ! distances Xij, Yij and Zij
+              DYIJ=XD(2,J)-XD(2,I)
+              DZIJ=XD(3,J)-XD(3,I)            
+!             Periodicity *************
+              IF(LIDX.EQ.1) THEN
+                 IF(DXIJ.GT.XLHALF) DXIJ=DXIJ-XL
+                 IF(DXIJ.LT.-XLHALF) DXIJ=DXIJ+XL
+              ENDIF
+              IF(LIDZ.EQ.1) THEN
+                 IF(DZIJ.GT.ZLHALF) DZIJ=DZIJ-ZL
+                 IF(DZIJ.LT.-ZLHALF) DZIJ=DZIJ+ZL
+              ENDIF
+              IF(LIDY.EQ.1) THEN
+                 IF(DYIJ.GT.YLHALF) DYIJ=DYIJ-YL
+                 IF(DYIJ.LT.-YLHALF) DYIJ=DYIJ+YL
+              ENDIF
+!             End of periodicity ******
+
+              IJ = ijindex(KTYPEI, KTYPE(J))  ! potential type for the p               
+              RRIJ=DXIJ*DXIJ+DYIJ*DYIJ+DZIJ*DZIJ
+              RDIJ=SQRT(RRIJ)            ! Distance Rij
+              
+              IF (RDIJ.GE.RM(IJ)) CYCLE inner_loop
+              
+              P=RDIJ*DXR(IJ)
+              KF=P
+              P=P-KF
+              
+              FCIJ =(FC(IJ,KF)+(FC(IJ,KF+1)-FC(IJ,KF))*P)           
+              DFCIJ =(DFC(IJ,KF)+(DFC(IJ,KF+1)-DFC(IJ,KF))*P)       
+              
+              FAIJ =(FA(IJ,KF)+(FA(IJ,KF+1)-FA(IJ,KF))*P)
+              DFAIJ =(DFA(IJ,KF)+(DFA(IJ,KF+1)-DFA(IJ,KF))*P)
+              
+              FRIJ =(FFR(IJ,KF)+(FFR(IJ,KF+1)-FFR(IJ,KF))*P)
+              DFRIJ =(DFR(IJ,KF)+(DFR(IJ,KF+1)-DFR(IJ,KF))*P)
+              
+              SIGIJ=0.0d0
+              DBIJ =0.0d0
+              
+              inner_loop2: DO KK=1,NNG(I)      
+                 
+                 K=NNNG(KK,I)
+                 KTYPEK = KTYPE(K)
+
+                 IF(KTYPEK.EQ.KWT) CYCLE inner_loop2
+                 
+                 IF(K.EQ.J) cycle inner_loop2
+                 
+                 DXIK=XD(1,K)-XD(1,I)
+                 DYIK=XD(2,K)-XD(2,I)
+                 DZIK=XD(3,K)-XD(3,I)
+
+!                Periodicity *************
+                 IF(LIDX.EQ.1) THEN
+                    IF(DXIK.GT.XLHALF) DXIK=DXIK-XL
+                    IF(DXIK.LT.-XLHALF) DXIK=DXIK+XL
+                 ENDIF
+                 IF(LIDZ.EQ.1) THEN
+                    IF(DZIK.GT.ZLHALF) DZIK=DZIK-ZL
+                    IF(DZIK.LT.-ZLHALF) DZIK=DZIK+ZL
+                 ENDIF
+                 IF(LIDY.EQ.1) THEN
+                    IF(DYIK.GT.YLHALF) DYIK=DYIK-YL
+                    IF(DYIK.LT.-YLHALF) DYIK=DYIK+YL
+                 ENDIF
+!                End of periodicity ******
+
+                 IK = ijindex(KTYPEI, KTYPE(K))
+                 RRIK=DXIK*DXIK+DYIK*DYIK+DZIK*DZIK
+                 RDIK=SQRT(RRIK)
+                 
+                 IF (RDIK.GE.RM(IK)) CYCLE inner_loop2
+                 
+                 P=RDIK*DXR(IJ)
+                 KF=P
+                 P=P-KF
+                 
+                 FCIK =(FC(IK,KF)+(FC(IK,KF+1)-FC(IK,KF))*P)
+                 DFCIK =(DFC(IK,KF)+(DFC(IK,KF+1)-DFC(IK,KF))*P)
+                 
+!                Calculations of the distance between J and K atoms
+                 DXJK=XD(1,K)-XD(1,J) ! with atom I. Hence K>J required
+                 DYJK=XD(2,K)-XD(2,J)
+                 DZJK=XD(3,K)-XD(3,J) ! distances Xik, Yik and Zik
+
+!                Check for Periodicity ***
+                 IF(LIDX.EQ.1) THEN
+                    IF(DXJK.GT.XLHALF) DXJK=DXJK-XL
+                    IF(DXJK.LT.-XLHALF) DXJK=DXJK+XL
+                 ENDIF
+                 IF(LIDZ.EQ.1) THEN
+                    IF(DZJK.GT.ZLHALF) DZJK=DZJK-ZL
+                    IF(DZJK.LT.-ZLHALF) DZJK=DZJK+ZL
+                 ENDIF
+                 IF(LIDY.EQ.1) THEN
+                    IF(DYJK.GT.YLHALF) DYJK=DYJK-YL
+                    IF(DYJK.LT.-YLHALF) DYJK=DYJK+YL
+                 ENDIF
+!                End of periodicity ******
+                    
+                 RRJK = DXJK*DXJK + DYJK*DYJK + DZJK*DZJK
+                 RDJK = SQRT(RRJK)
+
+!                Cosine of angle theta jik
+                 costh = (RRIK + RRIJ - RRJK)/(2.0D+00*RDIJ*RDIK)         
+                 
+                 H=TF_H(ktypeI)
+                 TN=TF_N(ktypeI)
+                 C=TF_C(ktypeI)**2.0
+                 D=TF_D(ktypeI)**2.0
+                 Bet = TF_Bet(KtypeI) 
+                 
+                 del = 1.0d0/(2.0d0 *TN)
+                 BEN = (Bet*SIGIJ)**TN
+                 Hcos=(H-costh)                        
+                 DN = D + Hcos**2.0
+                 
+                 GTH = 1 + (C/D) - C/(DN)     ! g(theta)
+                 
+                 SIGIJ = SIGIJ + FCIK*GTH
+                 
+              END DO inner_loop2
+        
+!             ENERGY CONTRIBUTION
+              
+              TN=TF_N(ktypeI)
+              del = -1.0d0/(2.0d0 *TN)
+              ENN = SIGIJ**TN
+              EN2 = SIGIJ**(TN-1.0d0)      
+              BN = TF_Bet(KtypeI)**TN
+              BBIJ = TF_KSI(IJ)*(1+BN*ENN)**del
+              
+              P=RDIJ*DXR(IJ)
+              KF=P
+              P=P-KF
+              
+              FDR=(DFCDFR(IJ,KF)+(DFCDFR(IJ,KF+1)-DFCDFR(IJ,KF))*P) 
+              FDA=(DFCDFA(IJ,KF)+(DFCDFA(IJ,KF+1)-DFCDFA(IJ,KF))*P)  
+
+!             Potential energy THREE BODY
+
+              PEGY=0.5d0*(FRIJ-BBIJ*FAIJ)*FCIJ/ENUNIT
+              POT(I)=POT(I)+PEGY
+
+!             Force Calculations
+
+              FDD = -0.5d0*(FDR-BBIJ*FDA)/RDIJ   ! BIJ part
+              FDD = FDD/ENUNIT
+              
+              DX=FDD*DXIJ                        ! x component of force
+              FDTF(1,I)=FDTF(1,I)-DX
+              FDTF(1,J)=FDTF(1,J)+DX
+
+              DZ=FDD*DZIJ                        ! z component of force
+              FDTF(3,I)=FDTF(3,I)-DZ
+              FDTF(3,J)=FDTF(3,J)+DZ
+
+              DY=FDD*DYIJ                        ! y component of force
+              FDTF(2,I)=FDTF(2,I)-DY
+              FDTF(2,J)=FDTF(2,J)+DY
+              
+!             Static Portion of Stress Tensor
+              STENTF(I,1,1)=STENTF(I,1,1)+(FDD)*DXIJ*DXIJ
+              STENTF(I,2,2)=STENTF(I,2,2)+(FDD)*DYIJ*DYIJ
+              STENTF(I,3,3)=STENTF(I,3,3)+(FDD)*DZIJ*DZIJ
+              
+              STENTF(J,1,1)=STENTF(J,1,1)+(FDD)*DXIJ*DXIJ
+              STENTF(J,2,2)=STENTF(J,2,2)+(FDD)*DYIJ*DYIJ
+              STENTF(J,3,3)=STENTF(J,3,3)+(FDD)*DZIJ*DZIJ
+              
+              inner_loop3: DO KK=1, NNG(I)  ! Loop over all neighbors of atom I
+
+                 K=NNNG(KK,I)   
+                 KTYPEK = KTYPE(K)
+
+                 IF(KTYPEK.EQ.KWT) CYCLE inner_loop3
+                 
+                 IF(K.EQ.J) cycle inner_loop3     
+                 
+                 DXIK=XD(1,K)-XD(1,I)
+                 DYIK=XD(2,K)-XD(2,I)
+                 DZIK=XD(3,K)-XD(3,I)
+
+!                Periodicity *************
+                 IF(LIDX.EQ.1) THEN
+                    IF(DXIK.GT.XLHALF) DXIK=DXIK-XL
+                    IF(DXIK.LT.-XLHALF) DXIK=DXIK+XL
+                 ENDIF
+                 IF(LIDZ.EQ.1) THEN
+                    IF(DZIK.GT.ZLHALF) DZIK=DZIK-ZL
+                    IF(DZIK.LT.-ZLHALF) DZIK=DZIK+ZL
+                 ENDIF
+                 IF(LIDY.EQ.1) THEN
+                    IF(DYIK.GT.YLHALF) DYIK=DYIK-YL
+                    IF(DYIK.LT.-YLHALF) DYIK=DYIK+YL
+                 ENDIF
+!                End of periodicity ******
+
+                 IK = ijindex(KTYPEI, KTYPE(K))
+                 RRIK=DXIK*DXIK+DYIK*DYIK+DZIK*DZIK
+                 
+                 RDIK=SQRT(RRIK)
+                 IF (RDIK.GE.RM(IK)) CYCLE inner_loop3
+                 
+                 P=RDIK*DXR(IK)
+                 KF=P
+                 P=P-KF
+                 
+                 FCIK =(FC(IK,KF)+(FC(IK,KF+1)-FC(IK,KF))*P)
+                 DFCIK =(DFC(IK,KF)+(DFC(IK,KF+1)-DFC(IK,KF))*P)
+ 
+!                Calculations of the distance between J and K atoms
+                 DXJK=XD(1,K)-XD(1,J) ! d
+                 DYJK=XD(2,K)-XD(2,J)
+                 DZJK=XD(3,K)-XD(3,J) ! distances Xik, Yik and Zik
+
+!                Periodicity *************
+                 IF(LIDX.EQ.1) THEN
+                    IF(DXJK.GT.XLHALF) DXJK=DXJK-XL
+                    IF(DXJK.LT.-XLHALF) DXJK=DXJK+XL
+                 ENDIF
+                 IF(LIDZ.EQ.1) THEN
+                    IF(DZJK.GT.ZLHALF) DZJK=DZJK-ZL
+                    IF(DZJK.LT.-ZLHALF) DZJK=DZJK+ZL
+                 ENDIF
+                 IF(LIDY.EQ.1) THEN
+                    IF(DYJK.GT.YLHALF) DYJK=DYJK-YL
+                    IF(DYJK.LT.-YLHALF) DYJK=DYJK+YL
+                 ENDIF
+!                End of periodicity ******
+               
+                 RRJK = DXJK*DXJK + DYJK*DYJK + DZJK*DZJK
+                 RDJK = SQRT(RRJK)
+                 JK = ijindex(KTYPE(J), KTYPE(K))
+                 
+!                Use the cosine rule to calculate cos(theta)
+                 costh = (RRIK + RRIJ - RRJK)/(2.0D+00*RDIJ*RDIK)
+                 
+                 dcosdrij = 1.0D+00/RDIK - costh/RDIJ
+                 dcosdrik = 1.0D+00/RDIJ - costh/RDIK
+                 dcosdrjk = -RDJK/(RDIJ * RDIK)
+                 
+                 GH=TF_H(ktypeI)
+                 TN=TF_N(ktypeI)
+                 C=TF_C(ktypeI)**2.0
+                 D=TF_D(ktypeI)**2.0
+                 Bet = TF_Bet(KtypeI) 
+                 
+                 dl = 1.0d0/(2.0d0 *TN)
+                 BEN = (Bet*SIGIJ)**TN
+                 
+                 Hcos=(GH-costh)
+                 
+                 DN = D + Hcos**2.0
+                 
+                 GTH = 1 + (C/D) - C/(DN)     ! g(theta)
+                 
+                 DGTH = -2.0d0*C*Hcos/(DN**2.0d0)    ! dg(theta)/dcosth
+                 
+                 IF(SIGIJ.EQ.0.0d0) Then
+                    DBIJ=0.0d0                        ! dbij/dEij
+                 ELSE   
+                    DBIJ= -TF_KSI(IJ)*dl*TN*BBIJ*BEN/((1+BEN)*SIGIJ)
+                 ENDIF
+                 
+                 dVdBij   = -0.5d0*FAIJ*FCIJ          !  dV/dBij
+                 dEdRik   =  DFCIK*GTH                !  dEij/dRik
+                 dEdCTH   =  FCIK*DGTH                !  dEij/dcosth
+                 
+!                Force - IJ
+                 FFIJ = -dVdBij*DBIJ*(dEdCTH*dcosdrij)/RDIJ/ENUNIT
+
+                 FDTF(1,I) = FDTF(1,I) - FFIJ*DXIJ
+                 FDTF(1,J) = FDTF(1,J) + FFIJ*DXIJ
+                 
+                 FDTF(3,I) = FDTF(3,I) - FFIJ*DZIJ
+                 FDTF(3,J) = FDTF(3,J) + FFIJ*DZIJ
+                 
+                 FDTF(2,I) = FDTF(2,I) - FFIJ*DYIJ
+                 FDTF(2,J) = FDTF(2,J) + FFIJ*DYIJ
+                 
+!                Force - IK
+                 FFIK = -dVdBij*DBIJ*(dEdRIK+dEdCTH*dcosdrik)/RDIK/ENUNIT
+
+                 FDTF(1,I) = FDTF(1,I) - FFIK*DXIK
+                 FDTF(1,K) = FDTF(1,K) + FFIK*DXIK
+                 
+                 FDTF(3,I) = FDTF(3,I) - FFIK*DZIK
+                 FDTF(3,K) = FDTF(3,K) + FFIK*DZIK
+                 
+                 FDTF(2,I) = FDTF(2,I) - FFIK*DYIK
+                 FDTF(2,K) = FDTF(2,K) + FFIK*DYIK
+                 
+!                Rik derivatives:
+                 FFJK = -dVdBij*DBIJ*(dEdCTH*dcosdrjk)/RDJK/ENUNIT
+                 
+                 FDTF(1,J) = FDTF(1,J) - FFJK*DXJK
+                 FDTF(1,K) = FDTF(1,K) + FFJK*DXJK
+                 
+                 FDTF(3,J) = FDTF(3,J) - FFJK*DZJK
+                 FDTF(3,K) = FDTF(3,K) + FFJK*DZJK
+                 
+                 FDTF(2,J) = FDTF(2,J) - FFJK*DYJK
+                 FDTF(2,K) = FDTF(2,K) + FFJK*DYJK
+                 
+!                Static portion of stress tensor - 3 body 
+                 STENTF(I,1,1)=STENTF(I,1,1)+FFIJ*DXIJ*DXIJ+FFIK*DXIK*DXIK
+                 STENTF(I,2,2)=STENTF(I,2,2)+FFIJ*DYIJ*DYIJ+FFIK*DYIK*DYIK
+                 STENTF(I,3,3)=STENTF(I,3,3)+FFIJ*DZIJ*DZIJ+FFIK*DZIK*DZIK
+                 
+                 STENTF(J,1,1)=STENTF(J,1,1)+FFIJ*DXIJ*DXIJ+FFJK*DXJK*DXJK
+                 STENTF(J,2,2)=STENTF(J,2,2)+FFIJ*DYIJ*DYIJ+FFJK*DYJK*DYJK
+                 STENTF(J,3,3)=STENTF(J,3,3)+FFIJ*DZIJ*DZIJ+FFJK*DZJK*DZJK
+                 
+                 STENTF(K,1,1)=STENTF(K,1,1)+FFIK*DXIK*DXIK+FFJK*DXJK*DXJK
+                 STENTF(K,2,2)=STENTF(K,2,2)+FFIK*DYIK*DYIK+FFJK*DYJK*DYJK
+                 STENTF(K,3,3)=STENTF(K,3,3)+FFIK*DZIK*DZIK+FFJK*DZJK*DZJK
+                 
+              END DO inner_loop3
+           END DO inner_loop
+        END DO outer_loop
+        
+!       We shall now share the force contribution into the border layer of
+!       each node because of the skin layer part taken from the related node
+        CALL SHARE_TF()
+
+!       Finally, add all forces up within the processor's border
+        FD(1:3,1:NN1) = FDTF(1:3,1:NN1)! + FDTF(1:3,1:NN1)
+        STEN(1:NN1,1:3,1:3) = STENTF(1:NN1,1:3,1:3)! + STENTF(1:NN1,1:3,1:3)
+        
+        RETURN
+      END SUBROUTINE F_TF
