@@ -1,2 +1,0 @@
-      408.00000  - FSTART (Initial force)
-      210.00000  - GIMPED (Characteristic impedance of the outer material)
